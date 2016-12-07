@@ -1,5 +1,8 @@
 
 #include <ESP8266WiFi.h>
+#include <ESP8266mDNS.h>
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
 #include <PubSubClient.h>
 #include "../config/wifi.h"
 
@@ -31,6 +34,40 @@ void setup() {
   setup_wifi();
   client.setServer(CONFIG_MQTT_SERVER, CONFIG_MQTT_PORT);
   client.setCallback(callback);
+
+  setupOTA();
+
+}
+
+  bool wasOn = true;
+void setupOTA(){
+  ArduinoOTA.setHostname(deviceName);
+  // ArduinoOTA.setPassword("admin");
+
+  ArduinoOTA.onStart([]() {
+      Serial.println("Start updating ");
+    });
+    ArduinoOTA.onEnd([]() {
+      Serial.println("\nEnd");
+      digitalWrite(BUILTIN_LED, HIGH);
+    });
+    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+      Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+      wasOn = !wasOn;
+      digitalWrite(BUILTIN_LED, wasOn ? LOW : HIGH);
+    });
+    ArduinoOTA.onError([](ota_error_t error) {
+      Serial.printf("Error[%u]: ", error);
+      if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+      else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+      else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+      else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+      else if (error == OTA_END_ERROR) Serial.println("End Failed");
+    });
+    ArduinoOTA.begin();
+    Serial.println("Ready for OTA");
+
+
 }
 
 void setup_wifi() {
@@ -94,10 +131,12 @@ void reconnect() {
     }
   }
 }
+
 void loop() {
 
   if (!client.connected()) {
     reconnect();
   }
   client.loop();
+  ArduinoOTA.handle();
 }
