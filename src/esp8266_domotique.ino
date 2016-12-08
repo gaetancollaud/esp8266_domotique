@@ -1,24 +1,37 @@
 
+
+
+
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
 #include <WiFiUdp.h>
-#include <ArduinoOTA.h>
 #include <PubSubClient.h>
+
+#include <OTA.h>
+#include <ws2812.h>
+
 #include "../config/wifi.h"
 
 // #define BUILTIN_LED 2
 #define BUILTIN_LED 2
 #define PIN_RELAY 5
+#define NB_PIXELS 12
 
 // Update these with values suitable for your network.
 
-const char* deviceName = "sapin";
-const char* topicIn = "/openhab/out/Salon2Relay1/command";
-const char* topicOut = "/openhab/out/Salon2Relay1/state";
-
+const char* deviceName = "circleled";
+const char* topicIn = "/openhab/out/TestColor/command";
+const char* topicOut = "/openhab/out/TestColor/state";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
+
+NeoPixelBus<NeoGrbFeature, Neo800KbpsMethod> strip(NB_PIXELS, 2);
+NeoPixelAnimator animations(NB_PIXELS, NEO_MILLISECONDS);
+
+OTA ota(deviceName, BUILTIN_LED);
+WS2812 ledStip(&strip, &animations);
+
 long lastMsg = 0;
 char msg[50];
 int value = 0;
@@ -31,44 +44,15 @@ void setup() {
   digitalWrite(BUILTIN_LED, HIGH);
   digitalWrite(PIN_RELAY, LOW);
 
+
   setup_wifi();
   client.setServer(CONFIG_MQTT_SERVER, CONFIG_MQTT_PORT);
   client.setCallback(callback);
 
-  setupOTA();
-
+  ledStip.init();
+  ota.init();
 }
 
-  bool wasOn = true;
-void setupOTA(){
-  ArduinoOTA.setHostname(deviceName);
-  // ArduinoOTA.setPassword("admin");
-
-  ArduinoOTA.onStart([]() {
-      Serial.println("Start updating ");
-    });
-    ArduinoOTA.onEnd([]() {
-      Serial.println("\nEnd");
-      digitalWrite(BUILTIN_LED, HIGH);
-    });
-    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-      Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
-      wasOn = !wasOn;
-      digitalWrite(BUILTIN_LED, wasOn ? LOW : HIGH);
-    });
-    ArduinoOTA.onError([](ota_error_t error) {
-      Serial.printf("Error[%u]: ", error);
-      if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-      else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-      else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-      else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-      else if (error == OTA_END_ERROR) Serial.println("End Failed");
-    });
-    ArduinoOTA.begin();
-    Serial.println("Ready for OTA");
-
-
-}
 
 void setup_wifi() {
 
@@ -138,5 +122,6 @@ void loop() {
     reconnect();
   }
   client.loop();
-  ArduinoOTA.handle();
+  ota.loop();
+  ledStip.loop();
 }
