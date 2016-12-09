@@ -4,9 +4,6 @@
 #include <ArduinoOTA.h>
 #include "Arduino.h"
 
-/**
- * Abstract class to help debug class
- */
 class OTA {
 public:
   OTA(const char* deviceName, int statudLed);

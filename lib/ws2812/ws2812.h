@@ -5,24 +5,27 @@
 #include <NeoPixelAnimator.h>
 #include "Arduino.h"
 
-/**
- * Abstract class to help debug class
- */
 class WS2812 {
 public:
   WS2812(NeoPixelBus<NeoGrbFeature, Neo800KbpsMethod>* strip, NeoPixelAnimator* animations);
 
-	void init();
+  void init();
 
   void loop();
 
+  void setColor(std::string color);
+
 protected:
 
-   void setupAnimationSet();
+  RgbColor lastColor;
+
+  void setupAnimationSet(RgbColor targetColor);
+
+  RgbColor getRgb(float h, float s, float v);
 
 
-   NeoPixelBus<NeoGrbFeature, Neo800KbpsMethod>* strip;
-   NeoPixelAnimator* animations;
+  NeoPixelBus<NeoGrbFeature, Neo800KbpsMethod>* strip;
+  NeoPixelAnimator* animations;
 };
 
 #endif

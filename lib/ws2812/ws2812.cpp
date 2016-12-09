@@ -3,28 +3,12 @@
 
 #define colorSaturation 20
 
-WS2812::WS2812(NeoPixelBus<NeoGrbFeature, Neo800KbpsMethod>* strip, NeoPixelAnimator* animations) : strip(strip), animations(animations){
+WS2812::WS2812(NeoPixelBus<NeoGrbFeature, Neo800KbpsMethod>* strip, NeoPixelAnimator* animations) :
+  strip(strip), animations(animations), lastColor(RgbColor(0)){
 }
 
 void WS2812::init(){
   this->strip->Begin();
-
-  uint32_t seed;
-
-  // random works best with a seed that can use 31 bits
-  // analogRead on a unconnected pin tends toward less than four bits
-  seed = analogRead(0);
-  delay(1);
-
-  for (int shifts = 3; shifts < 31; shifts += 3){
-    seed ^= analogRead(0) << shifts;
-    delay(1);
-  }
-
-Serial.print("seed: ");
-  Serial.println(seed);
-  randomSeed(seed);
-
 }
 
 void WS2812::loop(){
@@ -32,49 +16,79 @@ void WS2812::loop(){
   if (animations->IsAnimating()) {
     animations->UpdateAnimations();
     strip->Show();
-  } else {
-    setupAnimationSet();
   }
-
-  //     const uint8_t peak = 50;
-  // RgbColor targetColor = RgbColor(random(peak), random(peak), random(peak));
-  // strip->ClearTo(targetColor);
-  // strip->Show();
-  // delay(1000);
-
 }
 
 
-void WS2812::setupAnimationSet()
+void WS2812::setColor(std::string color){
+  if(color.compare("ON")==0){
+    this->setupAnimationSet(this->lastColor);
+  }else if(color.compare("OFF")==0){
+    this->setupAnimationSet(RgbColor(0));
+  }else{
+    int pos1 = color.find(",");
+    int pos2 = color.find(",", pos1+1);
+    float h = atof(color.substr(0, pos1).c_str());
+    float s = atof(color.substr(pos1+1, pos2-pos1-1).c_str());
+    float v = atof(color.substr(pos2+1, color.npos).c_str());
+
+    RgbColor rgb = this->getRgb(h,s,v);
+
+    Serial.print("RGB\t");
+
+    this->setupAnimationSet(rgb);
+    this->lastColor = rgb;
+    Serial.print(rgb.R);
+    Serial.print("\t");
+    Serial.print(rgb.G);
+    Serial.print("\t");
+    Serial.println(rgb.B);
+  }
+
+}
+
+RgbColor WS2812::getRgb(float h, float s, float v){
+  double r = 0, g = 0, b = 0;
+	s /= 100;
+	v /= 100;
+
+	float t = (float) (((int) (h / 60 * 1000)) % 2000) / 1000;
+	float c = v*s;
+	float x = c * (1 - abs(t - 1));
+	float m = v - c;
+
+	if (h < 60) {
+		r = c;
+		g = x;
+	} else if (h < 120) {
+		r = x;
+		g = c;
+	} else if (h < 180) {
+		g = c;
+		b = x;
+	} else if (h < 240) {
+		g = x;
+		b = c;
+	} else if (h < 300) {
+		r = x;
+		b = c;
+	} else {
+		r = c;
+		b = x;
+	}
+
+  return RgbColor((r+m)*255, (g+m)*255, (b+m)*255);
+}
+
+void WS2812::setupAnimationSet(RgbColor targetColor)
 {
-    const uint8_t peak = 50;
-RgbColor targetColor = RgbColor(random(peak), random(peak), random(peak));
-RgbColor originalColor = strip->GetPixelColor(0);
-    // setup some animations
-    // for (uint16_t pixel = 0; pixel < strip->PixelCount(); pixel++)
-    // {
+  RgbColor originalColor = strip->GetPixelColor(0);
+  uint16_t time = 300;
+  AnimUpdateCallback animUpdate = [=](const AnimationParam& param)  {
+    float progress = NeoEase::QuadraticInOut(param.progress);
+    RgbColor updatedColor = RgbColor::LinearBlend(originalColor, targetColor, progress);
+    strip->ClearTo(updatedColor);
+  };
 
-        // pick a random duration of the animation for this pixel
-        // since values are centiseconds, the range is 1 - 4 seconds
-        uint16_t time = 300;
-
-        // each animation starts with the color that was present
-        // and ends with a random color
-
-        AnimUpdateCallback animUpdate = [=](const AnimationParam& param)
-        {
-            // progress will start at 0.0 and end at 1.0
-            // we convert to the curve we want
-            float progress = NeoEase::QuadraticInOut(param.progress);
-
-            // use the curve value to apply to the animation
-            RgbColor updatedColor = RgbColor::LinearBlend(originalColor, targetColor, progress);
-            strip->ClearTo(updatedColor);
-            // strip->SetPixelColor(pixel, updatedColor);
-        };
-
-        // now use the animation properties we just calculated and start the animation
-        // which will continue to run and call the update function until it completes
-        animations->StartAnimation(0, time, animUpdate);
-    // }
+  animations->StartAnimation(0, time, animUpdate);
 }
